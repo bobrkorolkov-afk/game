@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+<title>ПРОТОКОЛ-6 — кооперативный шутер в симуляции</title>
+<link rel="stylesheet" href="/src/style.css"/>
+</head>
+<body>
+<div id="app">
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- DAMAGE / FX overlays -->
+  <div id="damageVignette"></div>
+  <div id="healVignette"></div>
+  <div id="flashOverlay"></div>
+
+  <!-- ============ HUD ============ -->
+  <div id="hud" class="hidden">
+    <div id="crosshair"><span class="ch t"></span><span class="ch b"></span><span class="ch l"></span><span class="ch r"></span><i id="hitmarker">✕</i></div>
+    <div id="topBar">
+      <div class="waveBox"><div class="lbl">ВОЛНА</div><div id="waveNum">1</div></div>
+      <div id="bossBarWrap" class="hidden"><div class="bossName">☠ РАЗРУШИТЕЛЬ ☠</div><div class="bossBarBg"><div id="bossBar"></div></div></div>
+      <div class="enemiesBox"><div class="lbl">ВРАГОВ</div><div id="enemiesLeft">0</div></div>
+    </div>
+    <div id="scoreBox"><div class="lbl">СЧЁТ</div><div id="scoreVal">0</div><div id="comboVal"></div></div>
+    <div id="teamPanel"></div>
+    <div id="voiceHud"><span id="micIcon">🎙️</span><div id="micMeter"><div id="micMeterFill"></div></div><span id="micState">МИКРОФОН ВЫКЛ</span><span class="pttHint">[V] — говорить</span></div>
+    <div id="voiceToast" class="hidden"></div>
+    <div id="killFeed"></div>
+    <div id="bottomHud">
+      <div id="hpWrap">
+        <div class="hpTop"><span id="classIconHud">🔫</span><span id="hpText">120 / 120</span><span id="armorText"></span></div>
+        <div class="hpBarBg"><div id="hpBar"></div><div id="shieldBar"></div></div>
+        <div id="abilityRow">
+          <div class="ability" id="abilityBox"><b>Q</b><span id="abilityName">СТИМ</span><i id="abilityCd"></i></div>
+          <div class="ability" id="grenadeBox"><b>G</b><span>ГРАНАТА ×<em id="grenadeCount">3</em></span></div>
+          <div class="ability dashHint"><b>SHIFT</b><span>СПРИНТ</span></div>
+        </div>
+      </div>
+      <div id="weaponWrap">
+        <div id="weaponName">ВИНТОВКА «ИМПУЛЬС»</div>
+        <div id="ammoVal"><b id="ammoMag">30</b><span> / <i id="ammoReserve">∞</i></span></div>
+        <div id="reloadHint" class="hidden">ПЕРЕЗАРЯДКА…</div>
+      </div>
+    </div>
+    <div id="waveBanner" class="hidden"><h2 id="waveBannerTitle">ВОЛНА 1</h2><p id="waveBannerSub">Симуляция запущена. Удержите полигон!</p></div>
+    <div id="centerMsg" class="hidden"></div>
+    <div id="damageNumbers"></div>
+    <button id="pauseBtn" title="Пауза">⏸</button>
+
+    <!-- TOUCH -->
+    <div id="touchControls" class="hidden">
+      <div id="joystick"><div id="joyKnob"></div></div>
+      <div id="touchButtons">
+        <button class="tbtn" id="btnFire">ОГОНЬ</button>
+        <button class="tbtn small" id="btnJump">ПРЫГ</button>
+        <button class="tbtn small" id="btnAbility">Q</button>
+        <button class="tbtn small" id="btnReload">R</button>
+        <button class="tbtn small" id="btnMic">🎤</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MENU ============ -->
+  <section id="menuScreen" class="screen">
+    <div class="menuBgFx"><i></i><i></i><i></i></div>
+    <div class="logo">
+      <div class="logoTag">// СИМУЛЯЦИЯ БОЕВОЙ ГОТОВНОСТИ v2.6 //</div>
+      <h1>ПРОТОКОЛ<span>-6</span></h1>
+      <p class="tagline">Кооперативный шутер: 6 бойцов. Одна симуляция. Бесконечные черти.</p>
+    </div>
+    <div class="menuCard">
+      <label class="fieldLbl">ПОЗЫВНОЙ</label>
+      <input id="playerName" maxlength="16" placeholder="Введите позывной…" value="Игрок-1"/>
+      <button class="btn primary big" id="toLobbyBtn">🎮 &nbsp;СОЗДАТЬ ЛОББИ</button>
+      <button class="btn big" id="quickBtn">⚡ &nbsp;БЫСТРЫЙ БОЙ (СОЛО + БОТЫ)</button>
+      <div class="joinRow">
+        <input id="joinCode" maxlength="9" placeholder="КОД КОМНАТЫ"/>
+        <button class="btn" id="joinBtn">ВОЙТИ</button>
+      </div>
+      <div class="menuRowBtns">
+        <button class="btn ghost" id="howBtn">❓ Как играть</button>
+        <button class="btn ghost" id="scoresBtn">🏆 Рекорды</button>
+        <button class="btn ghost" id="soundBtn">🔊 Звук: вкл</button>
+      </div>
+    </div>
+    <div class="menuFeatures">
+      <div>🧟 Волны зомби и демонов</div><div>👹 Босс каждые 5 волн</div>
+      <div>🎙️ Голосовой чат и голосовые команды</div><div>👥 Лобби до 6 игроков</div>
+    </div>
+    <div class="highscores panel hidden" id="menuScores"><h3>🏆 ЛОКАЛЬНЫЕ РЕКОРДЫ</h3><table><thead><tr><th>#</th><th>Боец</th><th>Класс</th><th>Волна</th><th>Счёт</th></tr></thead><tbody id="menuScoresBody"></tbody></table></div>
+    <p class="foot">WASD — движение · Мышь — обзор · ЛКМ — огонь · Q — способность · G — граната · V — голос (удерживать)</p>
+  </section>
+
+  <!-- ============ LOBBY ============ -->
+  <section id="lobbyScreen" class="screen hidden">
+    <div class="lobbyWrap">
+      <header class="lobbyHead">
+        <div><h2>ЛОББИ <span class="dim">/ до 6 игроков</span></h2><div class="roomLine">КОМНАТА <b id="roomCode">SIM-0000</b><button class="miniBtn" id="copyCodeBtn">📋 копия</button><span id="pingVal">пинг 24 мс</span></div></div>
+        <button class="btn ghost" id="leaveLobbyBtn">← В меню</button>
+      </header>
+
+      <div class="lobbyGrid">
+        <div class="panel slotsPanel">
+          <h3>ОТРЯД <span id="slotCount">1/6</span></h3>
+          <div id="slots"></div>
+          <label class="checkRow"><input type="checkbox" id="fillBots" checked/> Добить отряд ИИ-бойцами</label>
+          <div class="voiceLog" id="voiceLog"><div class="vlSys">— голосовой канал подключён —</div></div>
+        </div>
+
+        <div class="panel classPanel">
+          <h3>ВЫБОР КЛАССА И БОЙЦА</h3>
+          <div id="classCards"></div>
+          <div id="classDetail"></div>
+        </div>
+
+        <div class="panel voicePanel">
+          <h3>🎙️ ГОЛОСОВОЙ ЧАТ</h3>
+          <p class="dim small">Микрофон нужен для голосового чата и голосовых команд («граната!», «лечи!», «перезарядка!»).</p>
+          <button class="btn primary" id="micBtn">🎤 Включить микрофон</button>
+          <div class="micTest"><div class="micTestBar"><div id="micTestFill"></div></div><span id="micStatus">не подключён</span></div>
+          <label class="checkRow"><input type="checkbox" id="openMic"/> Открытый микрофон (без V)</label>
+          <label class="checkRow"><input type="checkbox" id="voiceCmds" checked/> Голосовые команды (если поддерживает браузер)</label>
+          <div class="voiceBtns">
+            <button class="btn ghost small" id="testVoiceCmdBtn">🎧 Проверить команды</button>
+          </div>
+          <h3 style="margin-top:16px">МИССИЯ</h3>
+          <div class="mission"><b>УРОВЕНЬ 01 — НЕОНОВЫЙ ПОЛИГОН</b><br/><span class="dim small">Удерживайте симуляцию. Волны зомби, бегуны-черти, плевальщики и бруты. Каждую 5-ю волну — босс. Уровни 02–03 в разработке.</span></div>
+          <button class="btn primary big readyBtn" id="readyBtn">✓ ГОТОВ</button>
+          <button class="btn accent big hidden" id="startBtn">🚀 ЗАПУСТИТЬ СИМУЛЯЦИЮ</button>
+          <p class="dim small center" id="readyHint">Вы — хост. Нажмите «Готов», затем запускайте.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PAUSE ============ -->
+  <section id="pauseScreen" class="screen overlay hidden">
+    <div class="dialog">
+      <h2>⏸ ПАУЗА</h2><p class="dim">Симуляция заморожена</p>
+      <button class="btn primary big" id="resumeBtn">▶ Продолжить</button>
+      <button class="btn big" id="restartBtnPause">🔄 Заново (R)</button>
+      <button class="btn big" id="micBtnPause">🎤 Микрофон</button>
+      <button class="btn ghost big" id="quitBtn">Выйти в меню</button>
+    </div>
+  </section>
+
+  <!-- ============ GAME OVER ============ -->
+  <section id="overScreen" class="screen overlay hidden">
+    <div class="dialog wide">
+      <h2 class="overTitle">💀 СИМУЛЯЦИЯ ПРОВАЛЕНА</h2>
+      <p class="dim" id="overSub">Полигон захвачен на волне 1</p>
+      <div class="statsGrid">
+        <div><b id="stScore">0</b><span>СЧЁТ</span></div>
+        <div><b id="stWave">1</b><span>ВОЛНА</span></div>
+        <div><b id="stKills">0</b><span>УБИЙСТВА</span></div>
+        <div><b id="stHead">0</b><span>ХЕДШОТЫ</span></div>
+        <div><b id="stAcc">0%</b><span>ТОЧНОСТЬ</span></div>
+      </div>
+      <div class="highscores"><h3>🏆 ЛОКАЛЬНЫЕ РЕКОРДЫ</h3><table><thead><tr><th>#</th><th>Боец</th><th>Класс</th><th>Волна</th><th>Счёт</th></tr></thead><tbody id="overScoresBody"></tbody></table></div>
+      <button class="btn primary big" id="restartBtnOver">🔄 ЕЩЁ РАЗ (R)</button>
+      <button class="btn ghost big" id="menuBtnOver">В меню</button>
+    </div>
+  </section>
+
+  <!-- ============ HOW TO ============ -->
+  <section id="howScreen" class="screen overlay hidden">
+    <div class="dialog wide left">
+      <h2>❓ КАК ИГРАТЬ</h2>
+      <div class="howGrid">
+        <div><h4>⌨️ Управление</h4><p>WASD — движение, Shift — спринт, Space — прыжок<br/>Мышь — обзор, ЛКМ — огонь, R — перезарядка<br/>Q — способность класса, G — граната<br/>V (удерживать) — голосовой чат, M — мьют микрофона<br/>P / Esc — пауза, R на экране конца — рестарт</p></div>
+        <div><h4>📱 Телефон</h4><p>Левый стик — движение, свайп справа — обзор, кнопки ОГОНЬ / ПРЫГ / Q / R / 🎤 на экране.</p></div>
+        <div><h4>🎙️ Голос</h4><p>Включите микрофон в лобби. Скажите «граната», «лечи»/«помощь» или «перезарядка» — боец выполнит команду. Индикатор микрофона — внизу экрана.</p></div>
+        <div><h4>👹 Враги</h4><p>🧟 Зомби — медленные и живучие толпой<br/>👺 Чёрт-бегун — быстрый, прыгает<br/>🟣 Плевак — стреляет издалека<br/>🦍 Брут — медленный танк<br/>☠ <b>РАЗРУШИТЕЛЬ</b> — босс каждой 5-й волны: рывки и призыв миньонов</p></div>
+      </div>
+      <button class="btn primary big" id="closeHowBtn">Понятно</button>
+    </div>
+  </section>
+
+  <div id="toast" class="hidden"></div>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
