@@ -1,0 +1,19 @@
+{
+  "name": "rally-duo-3d",
+  "version": "1.0.0",
+  "description": "3D ралли: водитель + штурман, онлайн-лобби и голосвой чат",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "vite build",
+    "start": "node server.mjs",
+    "preview": "node server.mjs"
+  },
+  "dependencies": {
+    "three": "^0.186.1",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.5"
+  }
+}

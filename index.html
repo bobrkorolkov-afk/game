@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>RALLY DUO 3D — водитель + штурман | Онлайн-ралли с голосовым чатом</title>
+<meta name="description" content="3D ралли в браузере: один рулит, второй читает стенограмму. Онлайн-лобби до 3 команд, голосовой чат по микрофону, погода, low-poly графика." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏁</text></svg>" />
+<link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+<div id="gl"></div>
+<div id="vignette"></div>
+<div id="speedFx"></div>
+<div id="damageFlash"></div>
+<div id="whiteFlash"></div>
+
+<!-- ЗАГРУЗКА -->
+<div id="loading" class="overlay">
+  <div class="load-box">
+    <div class="logo-small">🏁 RALLY <span>DUO</span> 3D</div>
+    <div class="load-bar"><div id="loadFill"></div></div>
+    <div id="loadText">Строим трассу...</div>
+  </div>
+</div>
+
+<!-- ============ ГЛАВНОЕ МЕНЮ ============ -->
+<div id="menuScreen" class="screen hidden">
+  <div class="menu-layout">
+    <div class="menu-main panel">
+      <h1 class="game-title">RALLY <span>DUO</span> <em>3D</em></h1>
+      <p class="tagline">Один рулит. Второй читает стенограмму. <b>Вместе — к финишу!</b></p>
+      <div class="profile-row">
+        <input id="playerName" maxlength="18" placeholder="Ваш ник" />
+        <label class="color-pick" title="Цвет машины"><input type="color" id="carColor" value="#e63946" />🎨</label>
+        <label class="color-pick" title="Цвет полосы"><input type="color" id="carColor2" value="#ffffff" />〰️</label>
+      </div>
+      <button id="btnQuickStart" class="btn btn-hero">⚡ БЫСТРЫЙ СТАРТ</button>
+      <div class="btn-grid">
+        <button id="btnSolo" class="btn btn-primary">🏎️ Соло-гонка</button>
+        <button id="btnCreateLobby" class="btn btn-online">🌐 Создать лобби</button>
+      </div>
+      <div class="join-row">
+        <input id="joinCode" maxlength="4" placeholder="КОД" autocomplete="off" />
+        <button id="btnJoinLobby" class="btn">Войти по коду</button>
+      </div>
+      <div class="rooms-head"><span>Открытые лобби</span><button id="btnRefreshRooms" class="btn btn-mini">↻ Обновить</button></div>
+      <div id="roomList" class="room-list"><div class="room-empty">Нет открытых лобби — создайте своё!</div></div>
+      <div class="btn-grid3">
+        <button id="btnSettings" class="btn">⚙️ Настройки</button>
+        <button id="btnRecords" class="btn">🏆 Рекорды</button>
+        <button id="btnHelp" class="btn">❓ Как играть</button>
+      </div>
+      <div id="netStatus" class="net-status offline">● Сервер: подключение...</div>
+    </div>
+    <div class="menu-side">
+      <div class="panel role-card">
+        <h3>🎮 Роли экипажа</h3>
+        <p><b>🧑‍✈️ Водитель</b> — рулит, дрифтит и слушает штурмана. Стенограмму впереди почти не видно!</p>
+        <p><b>🗺️ Штурман</b> — видит повороты заранее, кричит в микрофон «Левый три!», следит за картой и временем.</p>
+        <p class="dim">До 3 команд по 2 человека в одном заезде. В соло-режиме партнёра заменит ИИ.</p>
+      </div>
+      <div class="panel">
+        <h3>🏆 Лучшие времена</h3>
+        <div id="menuBests" class="bests">Пока нет результатов — вперёд за первым рекордом!</div>
+      </div>
+      <div class="panel keys-hint">
+        <h3>⌨️ Управление</h3>
+        <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ехать · <kbd>Пробел</kbd> ручник/дрифт · <kbd>V</kbd> говорить · <kbd>C</kbd> камера · <kbd>Esc</kbd> пауза</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ЛОББИ ============ -->
+<div id="lobbyScreen" class="screen hidden">
+  <div class="lobby-layout">
+    <div class="panel lobby-main">
+      <div class="lobby-head">
+        <div>
+          <h2 id="lobbyTitle">Лобби</h2>
+          <div class="lobby-code">Код: <b id="lobbyCode">----</b> <button id="btnCopyCode" class="btn btn-mini">📋 Копировать</button></div>
+        </div>
+        <button id="btnLeaveLobby" class="btn btn-danger">🚪 Выйти</button>
+      </div>
+      <div id="teamsGrid" class="teams-grid"></div>
+      <div class="lobby-voice">
+        <button id="btnMicToggle" class="btn">🎙️ Включить микрофон</button>
+        <div class="mic-meter"><div id="micMeterFill"></div></div>
+        <select id="selMicMode" title="Режим микрофона">
+          <option value="ptt">Говорить по клавише V</option>
+          <option value="open">Открытый микрофон</option>
+          <option value="off">Микрофон выкл.</option>
+        </select>
+        <span class="dim" id="voiceHint">Голос: только своя команда</span>
+      </div>
+      <div class="lobby-foot">
+        <button id="btnReady" class="btn btn-primary">✅ Готов</button>
+        <button id="btnStartRace" class="btn btn-hero hidden">🏁 СТАРТ ГОНКИ</button>
+        <span id="lobbyHint" class="dim">Займите место водителя или штурмана и нажмите «Готов»</span>
+      </div>
+    </div>
+    <div class="lobby-side">
+      <div class="panel" id="lobbyCfgPanel">
+        <h3>🏁 Настройки заезда <span id="hostBadge" class="badge hidden">хост</span></h3>
+        <div class="cfg-grid">
+          <label>Название<input id="lcRoomName" maxlength="26" /></label>
+          <label>Трасса<select id="lcTrack"></select></label>
+          <label>Погода<select id="lcWeather"></select></label>
+          <label>Время суток <span id="lcTimeVal"></span><input type="range" id="lcTime" min="0" max="23.9" step="0.1" /></label>
+          <label>Игроков максимум<select id="lcMaxPlayers"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></label>
+          <label>Команд<select id="lcTeams"><option>1</option><option>2</option><option>3</option></select></label>
+          <label>Длина спецучастка<select id="lcStage"><option value="0.55">Короткая (~2 км)</option><option value="0.8">Средняя (~3 км)</option><option value="1">Полная (~4 км)</option></select></label>
+          <label>ИИ-соперники<select id="lcAI"><option>0</option><option>1</option><option>2</option></select></label>
+          <label>Сложность ИИ<select id="lcDiff"><option value="easy">Лёгкая</option><option value="normal">Средняя</option><option value="hard">Сложная</option><option value="pro">Профи</option></select></label>
+          <label>Голосовой канал<select id="lcVoice"><option value="team">Только команда</option><option value="all">Все игроки</option></select></label>
+          <label>Обратный отсчёт<select id="lcCountdown"><option>3</option><option>5</option><option>10</option></select></label>
+          <label class="chk"><input type="checkbox" id="lcPrivate" /> Приватное лобби</label>
+          <label class="chk"><input type="checkbox" id="lcCollisions" /> Столкновения машин</label>
+          <label class="chk"><input type="checkbox" id="lcDamage" /> Повреждения</label>
+        </div>
+        <div id="trackDesc" class="dim track-desc"></div>
+      </div>
+      <div class="panel chat-panel">
+        <h3>💬 Чат лобби</h3>
+        <div id="chatLog" class="chat-log"></div>
+        <div class="chat-row">
+          <input id="chatInput" maxlength="200" placeholder="Сообщение..." />
+          <button id="btnChatSend" class="btn btn-mini">➤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ СОЛО-НАСТРОЙКА ============ -->
+<div id="soloModal" class="modal hidden">
+  <div class="modal-box panel">
+    <div class="modal-head"><h2>🏎️ Соло-гонка</h2><button class="btn btn-mini close-modal" data-close="soloModal">✖</button></div>
+    <div class="role-select">
+      <label class="role-opt"><input type="radio" name="soloRole" value="driver" checked /><span>🧑‍✈️<b>Я водитель</b><small>ИИ-штурман читает стенограмму голосом</small></span></label>
+      <label class="role-opt"><input type="radio" name="soloRole" value="navigator" /><span>🗺️<b>Я штурман</b><small>Рулит ИИ — а вы вовремя кричите повороты!</small></span></label>
+    </div>
+    <div class="cfg-grid">
+      <label>Трасса<select id="soloTrack"></select></label>
+      <label>Погода<select id="soloWeather"></select></label>
+      <label>Время суток <span id="soloTimeVal"></span><input type="range" id="soloTime" min="0" max="23.9" step="0.1" /></label>
+      <label>Длина участка<select id="soloStage"><option value="0.55">Короткая</option><option value="0.8">Средняя</option><option value="1">Полная</option></select></label>
+      <label>ИИ-соперники<select id="soloAI"><option>0</option><option>1</option><option>2</option></select></label>
+      <label>Сложность<select id="soloDiff"><option value="easy">Лёгкая</option><option value="normal">Средняя</option><option value="hard">Сложная</option><option value="pro">Профи</option></select></label>
+      <label class="chk"><input type="checkbox" id="soloDamage" checked /> Повреждения</label>
+      <label class="chk"><input type="checkbox" id="soloCollisions" /> Столкновения с ИИ</label>
+    </div>
+    <div id="soloTrackDesc" class="dim track-desc"></div>
+    <button id="btnSoloStart" class="btn btn-hero">🏁 НА СТАРТ!</button>
+  </div>
+</div>
+
+<!-- ============ НАСТРОЙКИ ============ -->
+<div id="settingsModal" class="modal hidden">
+  <div class="modal-box panel wide">
+    <div class="modal-head"><h2>⚙️ Настройки</h2><button class="btn btn-mini close-modal" data-close="settingsModal">✖</button></div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="tab-game">🎮 Игра</button>
+      <button class="tab-btn" data-tab="tab-gfx">✨ Графика</button>
+      <button class="tab-btn" data-tab="tab-audio">🔊 Звук и голос</button>
+      <button class="tab-btn" data-tab="tab-controls">🕹️ Управление</button>
+    </div>
+
+    <div class="tab-panel" id="tab-game">
+      <div class="cfg-grid">
+        <label>Камера<select id="setCamera"><option value="chase">Погоня (близко)</option><option value="far">Погоня (далеко)</option><option value="hood">Капот</option><option value="drone">Дрон / вертолёт</option></select></label>
+        <label>Дистанция камеры <span data-val="camDist"></span><input type="range" id="setCamDist" min="0.7" max="1.7" step="0.05" /></label>
+        <label>Ассистент руля <span data-val="assist"></span><input type="range" id="setAssist" min="0" max="1" step="0.05" /></label>
+        <label>Упреждение стенограммы <span data-val="noteLead"></span><input type="range" id="setNoteLead" min="0.5" max="2" step="0.1" /></label>
+        <label>Скорость спидометра<select id="setSpeedUnit"><option value="kmh">км/ч</option><option value="mph">миль/ч</option></select></label>
+        <label class="chk"><input type="checkbox" id="setTraction" /> Трекшн-контроль</label>
+        <label class="chk"><input type="checkbox" id="setABS" /> ABS</label>
+        <label class="chk"><input type="checkbox" id="setDamage" /> Повреждения машины</label>
+        <label class="chk"><input type="checkbox" id="setAutoNotes" /> Голос ИИ-штурмана (TTS)</label>
+        <label class="chk"><input type="checkbox" id="setShowNotes" /> Стрелка-подсказка поворотов</label>
+        <label class="chk"><input type="checkbox" id="setVibration" /> Вибрация (телефон)</label>
+      </div>
+    </div>
+
+    <div class="tab-panel hidden" id="tab-gfx">
+      <div class="cfg-grid">
+        <label>Качество графики<select id="setQuality"><option value="potato">🥔 Картошка (макс. FPS)</option><option value="low">Низкое</option><option value="medium">Среднее</option><option value="high">Высокое</option><option value="rtx">💎 Ultra «RTX» (bloom+тени)</option></select></label>
+        <label>FOV (угол обзора) <span data-val="fov"></span><input type="range" id="setFov" min="55" max="95" step="1" /></label>
+        <label>Тряска камеры <span data-val="shake"></span><input type="range" id="setShake" min="0" max="2" step="0.1" /></label>
+        <label>Плотность частиц <span data-val="particles"></span><input type="range" id="setParticles" min="0" max="1.5" step="0.1" /></label>
+        <label>Погода сейчас (в гонке)<select id="setWeatherLive"></select></label>
+        <label>Время суток (в гонке) <span id="setTimeLiveVal"></span><input type="range" id="setTimeLive" min="0" max="23.9" step="0.1" /></label>
+        <label class="chk"><input type="checkbox" id="setShadows" /> Тени</label>
+        <label class="chk"><input type="checkbox" id="setBloom" /> Bloom-свечение</label>
+        <label class="chk"><input type="checkbox" id="setSpeedFov" /> Расширение FOV на скорости</label>
+        <label class="chk"><input type="checkbox" id="setHeadlightFx" /> Объёмный свет фар</label>
+      </div>
+      <p class="dim">Смена качества применяется сразу. «Картошка» отключает тени и bloom — игра полетит даже на слабом телефоне.</p>
+    </div>
+
+    <div class="tab-panel hidden" id="tab-audio">
+      <div class="cfg-grid">
+        <label>Общая громкость <span data-val="master"></span><input type="range" id="volMaster" min="0" max="1" step="0.05" /></label>
+        <label>Музыка <span data-val="music"></span><input type="range" id="volMusic" min="0" max="1" step="0.05" /></label>
+        <label>Двигатель <span data-val="engineVol"></span><input type="range" id="volEngine" min="0" max="1" step="0.05" /></label>
+        <label>Эффекты <span data-val="sfx"></span><input type="range" id="volSfx" min="0" max="1" step="0.05" /></label>
+        <label>Голос игроков / TTS <span data-val="voiceVol"></span><input type="range" id="volVoice" min="0" max="1" step="0.05" /></label>
+        <label>Темп голоса штурмана <span data-val="ttsRate"></span><input type="range" id="setTtsRate" min="0.7" max="1.6" step="0.02" /></label>
+        <label>Режим микрофона<select id="setMicMode"><option value="ptt">По клавише (удерживать V)</option><option value="open">Открытый микрофон</option><option value="off">Выключен</option></select></label>
+        <label>Слушать канал<select id="setVoiceChannel"><option value="team">Только команду</option><option value="all">Всех игроков</option></select></label>
+        <label class="chk"><input type="checkbox" id="setMusicOn" /> Музыка</label>
+        <label class="chk"><input type="checkbox" id="setTTS" /> Озвучка стенограммы (TTS)</label>
+        <label class="chk"><input type="checkbox" id="setEcho" /> Эхоподавление микрофона</label>
+        <label class="chk"><input type="checkbox" id="setNoise" /> Шумоподавление микрофона</label>
+      </div>
+      <div class="mic-test-row">
+        <button id="btnMicTest" class="btn">🎙️ Проверить микрофон</button>
+        <div class="mic-meter"><div id="micMeterFill2"></div></div>
+        <span class="dim">Скажите что-нибудь — полоска должна прыгать</span>
+      </div>
+    </div>
+
+    <div class="tab-panel hidden" id="tab-controls">
+      <div class="cfg-grid">
+        <label>Чувствительность руля <span data-val="steerSens"></span><input type="range" id="setSteerSens" min="0.5" max="2" step="0.05" /></label>
+        <label>Сенсорные кнопки<select id="setTouch"><option value="auto">Авто (на телефоне)</option><option value="on">Всегда показывать</option><option value="off">Никогда</option></select></label>
+      </div>
+      <table class="keys-table">
+        <tr><td><kbd>W</kbd>/<kbd>↑</kbd> газ · <kbd>S</kbd>/<kbd>↓</kbd> тормоз/задний</td><td><kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd> руль</td></tr>
+        <tr><td><kbd>Пробел</kbd> ручник (дрифт)</td><td><kbd>V</kbd> говорить (удерживать)</td></tr>
+        <tr><td><kbd>C</kbd> камера · <kbd>H</kbd> клаксон</td><td><kbd>Backspace</kbd> вернуть машину на трассу</td></tr>
+        <tr><td><kbd>Esc</kbd>/<kbd>P</kbd> пауза</td><td><kbd>R</kbd> рестарт (на финише/паузе)</td></tr>
+        <tr><td colspan="2">🗺️ <b>Штурман:</b> <kbd>Пробел</kbd>/<kbd>E</kbd> — объявить следующий поворот · <kbd>1</kbd>–<kbd>6</kbd> — быстрые команды водителю</td></tr>
+      </table>
+      <button id="btnResetSettings" class="btn btn-danger">Сбросить все настройки</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ РЕКОРДЫ ============ -->
+<div id="recordsModal" class="modal hidden">
+  <div class="modal-box panel wide">
+    <div class="modal-head"><h2>🏆 Таблица рекордов</h2><button class="btn btn-mini close-modal" data-close="recordsModal">✖</button></div>
+    <div class="table-wrap"><table class="score-table">
+      <thead><tr><th>#</th><th>Трасса</th><th>Экипаж</th><th>Время</th><th>Очки стиля</th><th>Дата</th></tr></thead>
+      <tbody id="recordsBody"></tbody>
+    </table></div>
+    <button id="btnClearScores" class="btn btn-danger">Очистить рекорды</button>
+  </div>
+</div>
+
+<!-- ============ КАК ИГРАТЬ ============ -->
+<div id="helpModal" class="modal hidden">
+  <div class="modal-box panel wide">
+    <div class="modal-head"><h2>❓ Как играть</h2><button class="btn btn-mini close-modal" data-close="helpModal">✖</button></div>
+    <div class="help-body">
+      <h3>🏁 Цель</h3>
+      <p>Проехать спецучасток от старта до финиша быстрее соперников, не разбив машину. Дрифт, прыжки и обгоны «впритирку» дают очки стиля и множитель комбо.</p>
+      <h3>🧑‍✈️ Водитель</h3>
+      <p>Слушайте штурмана! Цифра поворота — его крутизна: <b>6</b> — почти прямо на полном газу, <b>1</b> — шпилька, тормозить в пол. Ручник (<kbd>Пробел</kbd>) забрасывает зад в занос — так проходят крутые виражи и зарабатывают очки дрифта.</p>
+      <h3>🗺️ Штурман</h3>
+      <p>Вы видите стенограмму на 5 поворотов вперёд и всю карту. Говорите в микрофон (<kbd>V</kbd>) или жмите <kbd>Пробел</kbd> — поворот будет объявлен водителю голосом. Идеальный момент — за 3–4 секунды до виража: за точность начисляются очки, а ИИ-водитель (в соло) едет увереннее. Промолчали — водитель может улететь!</p>
+      <h3>🌐 Онлайн</h3>
+      <p>Создайте лобби и отправьте друзьям 4-значный код. До 3 команд по 2 человека: водитель + штурман. Голосовой чат работает прямо в браузере — разрешите микрофон. Хост настраивает трассу, погоду, время суток и сложность.</p>
+      <h3>💡 Советы</h3>
+      <p>• На дожде и снегу сцепление падает — тормозите раньше.<br/>• Контрольные пункты чинят машину на 12%.<br/>• Застряли? <kbd>Backspace</kbd> вернёт на трассу (+5 сек штрафа).<br/>• Ночью автоматически включаются фары и люстра.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ПАУЗА ============ -->
+<div id="pauseScreen" class="modal hidden">
+  <div class="modal-box panel narrow">
+    <h2>⏸️ Пауза</h2>
+    <div id="pauseStats" class="pause-stats"></div>
+    <button id="btnResume" class="btn btn-hero">▶️ Продолжить</button>
+    <button id="btnRestart2" class="btn btn-primary">↻ Заново (R)</button>
+    <button id="btnPauseSettings" class="btn">⚙️ Настройки</button>
+    <button id="btnBackLobby" class="btn hidden">↩️ В лобби</button>
+    <button id="btnQuitToMenu" class="btn btn-danger">🏠 В меню</button>
+  </div>
+</div>
+
+<!-- ============ РЕЗУЛЬТАТЫ ============ -->
+<div id="resultsScreen" class="screen hidden">
+  <div class="modal-box panel wide results-box">
+    <h2 id="resultsTitle">🏁 Финиш!</h2>
+    <div id="resultsStats" class="results-stats"></div>
+    <div class="table-wrap"><table class="score-table">
+      <thead><tr><th>Место</th><th>Команда / экипаж</th><th>Время</th><th>Очки</th><th></th></tr></thead>
+      <tbody id="resultsBody"></tbody>
+    </table></div>
+    <div class="btn-row">
+      <button id="btnRestart" class="btn btn-hero">↻ Ещё раз (R)</button>
+      <button id="btnResultsLobby" class="btn btn-online hidden">↩️ В лобби</button>
+      <button id="btnResultsMenu" class="btn">🏠 В меню</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ HUD ============ -->
+<div id="hud" class="hidden">
+  <div id="hudTop">
+    <div class="hud-chip time-chip">⏱ <b id="hudTime">0:00.000</b><small id="hudBest"></small></div>
+    <div class="progress-wrap">
+      <div class="progress-bar"><div id="progressFill"></div><div id="progressTicks"></div></div>
+      <div class="progress-labels"><span id="progDist">0.0 км</span><span id="hudPos">—</span><span id="progTotal">4.0 км</span></div>
+    </div>
+    <div class="hud-btns">
+      <button id="btnMicHud" class="hud-btn" title="Микрофон">🎙️</button>
+      <button id="btnCamHud" class="hud-btn" title="Камера (C)">📷</button>
+      <button id="btnResetCar" class="hud-btn" title="На трассу (Backspace)">⤴️</button>
+      <button id="btnPauseHud" class="hud-btn" title="Пауза (Esc)">⏸️</button>
+    </div>
+  </div>
+
+  <div id="paceNote" class="hidden">
+    <div id="noteArrow">⬆</div>
+    <div class="note-main"><div id="noteText">Прямо</div><div id="noteDist"></div></div>
+    <div id="noteNext"></div>
+  </div>
+  <div id="quickFlash" class="hidden"></div>
+  <div id="sectorDelta" class="hidden"></div>
+  <div id="wrongWay" class="hidden">⚠️ НЕ ТУДА! РАЗВОРАЧИВАЙТЕСЬ</div>
+
+  <div id="navPanel" class="hidden">
+    <div class="nav-head">🗺️ СТЕНОГРАММА <span id="navScore"></span></div>
+    <div id="navNext"></div>
+    <div id="navList"></div>
+    <div class="nav-conf">Уверенность водителя<div class="conf-bar"><div id="aiConfFill"></div></div></div>
+    <button id="btnCallNote" class="btn btn-hero">📣 ОБЪЯВИТЬ ПОВОРОТ (Пробел)</button>
+    <div class="quick-grid">
+      <button class="quick-btn" data-cmd="ГАЗ! 🔥">1️⃣ Газ!</button>
+      <button class="quick-btn" data-cmd="ТОРМОЗИ! 🛑">2️⃣ Тормози!</button>
+      <button class="quick-btn" data-cmd="Осторожно! ⚠️">3️⃣ Осторожно!</button>
+      <button class="quick-btn" data-cmd="Не резать! 🚧">4️⃣ Не резать!</button>
+      <button class="quick-btn" data-cmd="Держи прямо! ⬆">5️⃣ Прямо!</button>
+      <button class="quick-btn" data-cmd="Красава! 👏">6️⃣ Красава!</button>
+    </div>
+  </div>
+
+  <div id="hudRight">
+    <canvas id="minimap" width="440" height="440"></canvas>
+    <div id="voicePanel"><div id="voiceList"></div></div>
+  </div>
+
+  <div id="hudBottomLeft">
+    <div class="score-box">⭐ <b id="hudScore">0</b> <span id="hudMult"></span></div>
+    <div id="driftTag" class="hidden">🔥 ДРИФТ</div>
+    <div class="dmg-wrap">🔧<div class="dmg-bar"><div id="dmgFill"></div></div></div>
+    <div id="surfaceTag" class="hidden">🌾 ВНЕ ТРАССЫ</div>
+  </div>
+
+  <div id="hudBottomRight">
+    <div class="gear-box"><span id="hudGear">1</span></div>
+    <div class="speed-box"><b id="hudSpeed">0</b><small id="hudUnit">км/ч</small></div>
+    <div class="rpm-bar"><div id="rpmFill"></div></div>
+  </div>
+
+  <div id="centerMsg" class="hidden"><div id="countNum"></div><div id="centerText"></div></div>
+  <div id="popups"></div>
+
+  <div id="touchControls" class="hidden">
+    <div class="touch-left">
+      <button class="touch-btn" id="tLeft">◀</button>
+      <button class="touch-btn" id="tRight">▶</button>
+    </div>
+    <button class="touch-btn ptt" id="tPTT">🎙️</button>
+    <div class="touch-right">
+      <button class="touch-btn hand" id="tHand">🖐</button>
+      <button class="touch-btn brake" id="tBrake">ТОРМОЗ</button>
+      <button class="touch-btn gas" id="tGas">ГАЗ</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
